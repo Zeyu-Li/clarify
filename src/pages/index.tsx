@@ -9,10 +9,29 @@ const options = {
   maxFileCount: 1,
 };
 
+type UpscaleResponse = { upscaledUrl?: string; error?: string };
+
+async function requestUpscale(fileUrl: string): Promise<string> {
+  const res = await fetch("/api/file", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ fileUrl }),
+  });
+  const body = (await res.json()) as UpscaleResponse;
+  if (!res.ok || !body.upscaledUrl) {
+    throw new Error(body.error ?? "Upscaling failed");
+  }
+  return body.upscaledUrl;
+}
+
 export default function Home() {
   const [upscaledFile, setUpscaledFile] = useState("");
   const [originalImage, setOriginalImage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const getUpscaleUrl = (file: string) => {
     if (file.length <= 1) {
@@ -22,27 +41,19 @@ export default function Home() {
     setOriginalImage(file);
     // set to loading animation
     setIsLoading(true);
+    setError("");
     // get from backend
-    fetch("http://localhost:3000/api/file", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        fileUrl: file,
-      }),
-    })
-      .then((res) => res.json())
-      .then((res) => {
-        setUpscaledFile(res.upscaledUrl);
-        setIsLoading(false);
-      });
+    void requestUpscale(file)
+      .then(setUpscaledFile)
+      .catch((e: unknown) =>
+        setError(e instanceof Error ? e.message : "Upscaling failed"),
+      )
+      .finally(() => setIsLoading(false));
   };
 
   const getUpscale = (files: UploadWidgetResult[]) => {
     console.log("ali04: 2", files, files[0]);
-    if (typeof files == "undefined" || files[0] == undefined) {
+    if (files?.[0] == undefined) {
       return;
     }
     // const fileUrl = files[0].fileUrl;
@@ -76,6 +87,11 @@ export default function Home() {
               <h2 className="m-4 text-center text-2xl text-white">
                 Loading Images...
               </h2>
+            ) : (
+              ""
+            )}
+            {error ? (
+              <p className="m-4 text-center text-xl text-red-300">{error}</p>
             ) : (
               ""
             )}
